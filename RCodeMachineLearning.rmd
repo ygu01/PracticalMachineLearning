@@ -1,0 +1,80 @@
+Practical Machine Learning Course Project --- Find the classe of Exercise
+=============================================================================
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+      The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. 20 different test cases are predicted using the model trained by learning from the train set.
+
+Load and cleanse the data
+==========================
+Read the files 
+```{r}
+trainset<-read.csv("pml-training.csv",sep=",",header=TRUE)
+testset<-read.csv("pml-testing.csv",sep=",",header=TRUE)
+```
+Clean the data: remove all the columns where any of the data are N.A.
+```{r}
+library(data.table)
+DT <- as.data.table(trainset)
+trainset1<-data.frame(DT[,which(unlist(lapply(DT, function(x)!any(is.na(x))))),with=F])
+
+DT1 <- as.data.table(testset)
+testset1<-data.frame(DT1[,which(unlist(lapply(DT1, function(x)!any(is.na(x))))),with=F])
+```
+refine the train and test set to make sure all column names exist in both data frames. 
+The first 7 columns should not be used for the training and prediction.
+```{r}
+trainnames<-colnames(trainset1)[colnames(trainset1) %in% colnames(testset1)]
+trainset2<-trainset1[c(trainnames)]
+trainset2<-cbind(trainset2,trainset1["classe"])[,8:60]
+testset2<-testset1[c(trainnames)][8:59]
+```
+Train the set and predict
+=============================
+train the trainset with classification tree
+```{r}
+library("caret")
+set.seed(384)
+modFit <- train(classe ~ ., data = trainset2, method="rpart")
+print(modFit, digits=3)
+```
+plot the dicision tree
+```{r}
+plot(modFit$finalModel)
+text(modFit$finalModel)
+```
+cross validation of the fit model
+```{r}
+ctrl <- trainControl(method = "cv", savePred=T, classProb=T,number = 5) 
+mod <- train(classe~., data=trainset2, method = "rpart", trControl = ctrl) 
+print(mod, digits=3)
+```
+predict the test set
+```{r}
+print(predict(modFit, newdata=testset2))
+```
+The best accuracy is not good enough. Try random forest
+It is too time consuming to train the whole data set. Subset the data
+```{r}
+library(randomForest)
+d_small <- createDataPartition(y=trainset2$classe, p=0.25, list=FALSE)
+trainset2_small <- trainset2[d_small,]
+set.seed(384)
+modFit1 <- train(classe ~ ., data = trainset2_small, method="rf")
+print(modFit1, digits=3)
+print(predict(modFit1, newdata=testset2))
+```
+cross validation of the fit model
+```{r}
+ctrl <- trainControl(method = "cv", savePred=T, classProb=T,number = 5) 
+mod1 <- train(classe~., data=trainset2_small, method = "rf", trControl = ctrl) 
+print(mod1, digits=3)
+```
+
+Conclusions
+========================
+predicted classe of activity
+```{r}
+print(predict(modFit1, newdata=testset2))
+```
+The error rate of the final model (random forest) used for the prediction is 1-0.974=0.026 via corss-validated resampling.
+The model seemed to be quite accurate in predicting the activity. 
